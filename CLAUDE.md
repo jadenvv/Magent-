@@ -16,10 +16,6 @@ Existing computer-use agents are slow mainly because they make a large model cal
 
 The core loop is observe, decide, act, verify. Most of the design effort goes into running that loop fewer times and making each pass cheaper.
 
-**Observation**
-- Prefer the macOS Accessibility tree (AXUIElement) for UI state, since it gives element roles, labels, and exact frames without vision inference.
-- Fall back to screenshots (ScreenCaptureKit) only when an app exposes poor accessibility data.
-- Send diffs or targeted regions rather than full screens when possible.
 
 **Decision**
 - Use a planner/executor split. A large model plans and handles recovery, while a smaller, faster model (ideally local) handles routine grounding and execution.
@@ -37,6 +33,7 @@ The core loop is observe, decide, act, verify. Most of the design effort goes in
 **Visible overlay**
 - A transparent, click-through window above all other windows showing a ghost cursor, a highlight on the target element, a one-line description of the next action, and a scrolling action log.
 - A global hotkey that pauses or kills the agent immediately, regardless of what it is doing.
+- Implemented in `overlay/` as a separate Swift process the agent spawns and drives over pipes (JSON lines in, space-separated tokens out; see `overlay/README.md`). Pause/kill are SIGSTOP/SIGCONT/SIGKILL sent by the overlay, so they work without the agent's cooperation.
 
 ## Safety rules
 
@@ -83,6 +80,6 @@ I design the system and orchestrate most of the build through Claude, but some p
 
 ## Open decisions
 
-- Language split for the core vs. the macOS-native layer (e.g., a Rust core with a thin Swift bridge for macOS APIs).
+- Language split for the core vs. the macOS-native layer. Decided so far: the core loop / agent interface is C; the overlay is Swift. Still open: how the C core reaches Accessibility/ScreenCaptureKit.
 - Which models fill the planner and executor roles, and how much of the executor can run locally on Apple Silicon.
 - Format and storage for the skill cache, and how cached skills are invalidated when an app's UI changes.
