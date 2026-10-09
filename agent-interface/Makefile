@@ -34,11 +34,19 @@ else
 endif
 
 # -MMD -MP: track header dependencies so editing a .h rebuilds what includes it.
-CPPFLAGS  := -Iplatform -MMD -MP
+# Where the agent's Python modules (models.py) live, so the binary finds them from any cwd.
+CPPFLAGS  := -Iplatform -MMD -MP -DMG_AGENT_DIR='"$(abspath ../agent)"'
 WARN      := -Wall -Wextra -Wshadow -Werror=implicit-function-declaration
 CFLAGS    := -std=c17 $(WARN) -Wpedantic -Wstrict-prototypes $(OPT)
 # No -Wpedantic here: Apple's framework headers aren't pedantic-clean.
 OBJCFLAGS := -fobjc-arc $(WARN) $(OPT)
+
+# Embedded CPython, for the core only (tests link the platform layer, not Python).
+# -isystem instead of -I so Python's headers don't trip -Wpedantic/-Wextra.
+# Override to pick a different interpreter: make PYTHON_CONFIG=/path/to/python3-config
+PYTHON_CONFIG   ?= python3-config
+PYTHON_CFLAGS   := $(patsubst -I%,-isystem %,$(sort $(shell $(PYTHON_CONFIG) --includes)))
+PYTHON_LDFLAGS  := $(shell $(PYTHON_CONFIG) --ldflags --embed)
 LDLIBS    := -framework Foundation -framework CoreGraphics -framework CoreMedia -framework CoreVideo \
              -framework ImageIO -framework ScreenCaptureKit -framework Vision -framework ApplicationServices
 
@@ -54,11 +62,11 @@ debug:
 	$(MAKE) MODE=debug
 
 $(BIN): $(OBJS)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(PYTHON_LDFLAGS) -o $@
 
 $(BUILD)/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) $(PYTHON_CFLAGS) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: %.m
 	@mkdir -p $(dir $@)
