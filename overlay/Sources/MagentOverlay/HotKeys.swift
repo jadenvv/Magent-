@@ -44,4 +44,5 @@ enum HotKeys {
     static let modifiers = controlKey | optionKey | cmdKey
     static let pauseKeyCode = kVK_ANSI_P
     static let killKeyCode = kVK_ANSI_K
+    static let promptKeyCode = kVK_Space
 }

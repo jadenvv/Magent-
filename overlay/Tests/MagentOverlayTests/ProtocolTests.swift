@@ -19,6 +19,12 @@ final class ProtocolTests: XCTestCase {
         XCTAssertThrowsError(try InboundMessage.parse(#"{"text":"missing type"}"#))
     }
 
+    func testPromptTextIsOneLine() {
+        XCTAssertEqual(Outbound.singleLine("  open Notes\nand\r\nwrite\u{2028}hi\t "), "open Notes and  write hi")
+        // Zero-width joiners inside emoji must survive.
+        XCTAssertEqual(Outbound.singleLine("send 👩‍💻"), "send 👩‍💻")
+    }
+
     func testPrimaryScreenMapsToOrigin() {
         let tl = ScreenGeometry.topLeftFrame(CGRect(x: 0, y: 0, width: 1440, height: 900), primaryHeight: 900)
         XCTAssertEqual(tl, CGRect(x: 0, y: 0, width: 1440, height: 900))
@@ -53,6 +59,20 @@ final class ProtocolTests: XCTestCase {
         child.waitUntilExit()
         XCTAssertEqual(child.terminationReason, .uncaughtSignal)
         XCTAssertEqual(child.terminationStatus, SIGKILL)
+    }
+
+    @MainActor
+    func testInputReaderPreservesEmbeddedNULAndDeliversEOFLast() async throws {
+        var fds: [Int32] = [-1, -1]
+        XCTAssertEqual(pipe(&fds), 0)
+        let writer = FileHandle(fileDescriptor: fds[1], closeOnDealloc: true)
+        let ended = expectation(description: "EOF")
+        var lines: [String] = []
+        InputReader.start(fd: fds[0], onLine: { lines.append($0) }, onEOF: { ended.fulfill() })
+        try writer.write(contentsOf: Data("first\0tail\nsecond\r\n".utf8))
+        try writer.close()
+        await fulfillment(of: [ended], timeout: 5)
+        XCTAssertEqual(lines, ["first\0tail", "second"])
     }
 
     private func processState(_ pid: pid_t) -> String {

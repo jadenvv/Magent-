@@ -29,10 +29,17 @@ The core loop is observe, decide, act, verify. Most of the design effort goes in
 **Skill cache**
 - Store successful action sequences for recurring tasks and replay them with a lightweight verification step instead of re-planning from scratch.
 
+**Current request structurer**
+- Model: `LiquidAI/LFM2.5-VL-3B-MLX-4bit` (replaced LFM2.5-2.6B). It is loaded text-only through `mlx_lm`'s `lfm2-vl` loader (`MODEL_CONFIG` overrides the config's `lfm2_vl` type, which mlx_lm can't import). Image input would need `mlx-vlm`, which is not installed.
+- `agent/models.py` uses streaming MLX generation and stops once a usable JSON task spec is complete. Exact app-open requests for Safari, Notes, Calculator, Calendar, and Finder use deterministic specs without inference; this generates hints only, not actions. Specs may have `source: "deterministic"` as well as `"model"` or `"fallback"`.
+- Ablation switches: `MAGENT_EARLY_STOP=0`, `MAGENT_SIMPLE_BYPASS=0`, and `MAGENT_PREFIX_CACHE=0` disable each optimization. `MAGENT_MODEL_METRICS=1` logs timing and routing to stderr, including prefix match/hit, tokenization, cache preparation, load, first token, generation, and total request time. First-token time includes prefill and the first decode step; it is not a pure prefill measurement. Result-cache hits and deterministic routes must be reported separately from inference. Use unique requests when measuring warm inference.
+- Result-cache keys preserve exact request whitespace so quoted names and paths do not collide. The planner is not yet implemented, so comparing direct planner input against structuring remains future evaluation work.
+- The installed LFM template still opens `<think>` with `enable_thinking=False`. Closing it alone can yield reasoning/tool calls instead of JSON; generation now continues a seeded `{"goal":` answer. Fallback specs are not memoized, so a failed generation does not poison repeated requests.
+
 **Visible overlay**
 - A transparent, click-through window above all other windows showing a ghost cursor, a highlight on the target element, a one-line description of the next action, and a scrolling action log.
 - A global hotkey that pauses or kills the agent immediately, regardless of what it is doing.
-- Implemented in `overlay/` as a separate Swift process the agent spawns and drives over pipes (JSON lines in, space-separated tokens out; see `overlay/README.md`). Pause/kill are SIGSTOP/SIGCONT/SIGKILL sent by the overlay, so they work without the agent's cooperation.
+- Implemented in `overlay/` as a separate Swift process connected to the agent by pipes (JSON lines in, space-separated tokens out; see `overlay/README.md`). Either the agent spawns it (`--pid`), or it runs always-on as a per-user LaunchAgent (`--daemon`) and starts one long-lived agent process at launch (so models load before the first request), sending it every request over the agent's stdin/stdout. The agent reports one done/error per request and stays up; after a kill, the next request starts a new agent. Pause/kill are SIGSTOP/SIGCONT/SIGKILL sent by the overlay, so they work without the agent's cooperation. A prompt bar (⌃⌥⌘Space) lets the user type a request, which reaches the agent as a `prompt <text>` line; it only accepts a hardware Return.
 
 ## Execution modes
 

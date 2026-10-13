@@ -15,8 +15,11 @@ struct OverlayView: View {
     }
 
     var body: some View {
+        // Idle (daemon mode, no agent running): draw nothing, so an always-on overlay
+        // doesn't sit on the screen between tasks.
+        let active = model.state != .idle
         ZStack(alignment: .topLeading) {
-            StateBorder(state: model.state)
+            if active { StateBorder(state: model.state) }
 
             if let r = model.highlight {
                 let o = local(r.origin)
@@ -41,10 +44,10 @@ struct OverlayView: View {
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .overlay(alignment: .top) {
-            if isPrimary { StatusBar(model: model).padding(.top, safe.top + 8) }
+            if isPrimary && active { StatusBar(model: model).padding(.top, safe.top + 8) }
         }
         .overlay(alignment: .bottomTrailing) {
-            if isPrimary {
+            if isPrimary && active {
                 ActionLog(entries: model.log.suffix(14))
                     .padding(.bottom, safe.bottom + 12)
                     .padding(.trailing, safe.trailing + 12)

@@ -1,12 +1,13 @@
 import SwiftUI
 
 enum AgentState: String {
-    case running, paused, done, error, killed
+    case idle, running, paused, done, error, killed
 
     var label: String { rawValue.capitalized }
 
     var color: Color {
         switch self {
+        case .idle: .gray
         case .running: Theme.accent
         case .paused: .orange
         case .done: .green
@@ -14,8 +15,8 @@ enum AgentState: String {
         }
     }
 
-    /// Terminal states ignore pause/resume.
-    var isFinal: Bool { self == .done || self == .killed }
+    /// Terminal states ignore pause/resume. Idle has no agent to pause.
+    var isFinal: Bool { self == .done || self == .killed || self == .idle }
 }
 
 enum LogLevel: String {
@@ -70,12 +71,12 @@ final class OverlayModel: ObservableObject {
     @Published var pulse: ClickPulse?
     @Published private(set) var log: [LogEntry] = []
 
-    private let start = Date()
+    private let start = ProcessInfo.processInfo.systemUptime
     private var pulseCounter = 0
     private let maxLog = 200
 
     func append(_ text: String, level: LogLevel = .info) {
-        log.append(LogEntry(elapsed: Date().timeIntervalSince(start), level: level, text: text))
+        log.append(LogEntry(elapsed: ProcessInfo.processInfo.systemUptime - start, level: level, text: text))
         if log.count > maxLog { log.removeFirst(log.count - maxLog) }
     }
 
